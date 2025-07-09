@@ -1,31 +1,31 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useRef, useState } from "react"
-import Image from "next/image"
-import { MapPin } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import FullMapModal from "./full-map-modal"
+import { useRef, useState } from "react";
+import Image from "next/image";
+import { MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import FullMapModal from "./full-map-modal";
 
 interface Property {
-  id: string
-  name: string
-  type: string
-  listingType: string
-  size: string
-  area: string
-  price: string
-  coordinates: { x: number; y: number }
-  sector: string
+  id: string;
+  name: string;
+  type: string;
+  listingType: string;
+  size: string;
+  area: string;
+  price: string;
+  coordinates: { x: number; y: number };
+  sector: string;
 }
 
 interface PropertyMapProps {
-  properties: Property[]
-  selectedProperty: Property | null
-  onPropertyClick: (property: Property) => void
-  isAddMode: boolean
-  onMapClick: (coordinates: { x: number; y: number }) => void
+  properties: Property[];
+  selectedProperty: Property | null;
+  onPropertyClick: (property: Property) => void;
+  isAddMode: boolean;
+  onMapClick: (coordinates: { x: number; y: number }) => void;
 }
 
 export default function PropertyMap({
@@ -35,53 +35,69 @@ export default function PropertyMap({
   isAddMode,
   onMapClick,
 }: PropertyMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const [isFullMapOpen, setIsFullMapOpen] = useState(false)
-  const [zoomLevel, setZoomLevel] = useState(1)
+  const mapRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [isFullMapOpen, setIsFullMapOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  // Reference dimensions for coordinate normalization
+  const REFERENCE_WIDTH = 800;
+  const REFERENCE_HEIGHT = 600;
 
   const handlePropertyClick = (property: Property) => {
-    onPropertyClick(property)
-  }
+    onPropertyClick(property);
+  };
 
   const getPropertyColor = (property: Property) => {
-    if (selectedProperty?.id === property.id) return "#ef4444" // red for selected
+    if (selectedProperty?.id === property.id) return "#ef4444"; // red for selected
 
     switch (property.type.toLowerCase()) {
       case "villa":
-        return "#22c55e" // green
+        return "#22c55e"; // green
       case "apartment":
-        return "#3b82f6" // blue
+        return "#3b82f6"; // blue
       case "plot":
-        return "#eab308" // yellow
+        return "#eab308"; // yellow
       case "commercial":
-        return "#a855f7" // purple
+        return "#a855f7"; // purple
       default:
-        return "#6b7280" // gray
+        return "#6b7280"; // gray
     }
-  }
+  };
 
   const handleMapClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !imageRef.current) return;
 
-    const rect = mapRef.current.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    const rect = imageRef.current.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+
+    // Get the actual displayed image dimensions
+    const displayedWidth = rect.width;
+    const displayedHeight = rect.height;
+
+    // Normalize coordinates to reference dimensions (800x600)
+    const normalizedX = (clickX / displayedWidth) * REFERENCE_WIDTH;
+    const normalizedY = (clickY / displayedHeight) * REFERENCE_HEIGHT;
 
     if (isAddMode) {
-      onMapClick({ x, y })
-      return
+      onMapClick({ x: normalizedX, y: normalizedY });
+      return;
     }
 
-    // Check if clicking on an existing property
+    // Check if clicking on an existing property (using normalized coordinates)
     const clickedProperty = properties.find((property) => {
-      const distance = Math.sqrt(Math.pow(property.coordinates.x - x, 2) + Math.pow(property.coordinates.y - y, 2))
-      return distance < 20 // 20px radius for clicking
-    })
+      const distance = Math.sqrt(
+        Math.pow(property.coordinates.x - normalizedX, 2) +
+          Math.pow(property.coordinates.y - normalizedY, 2)
+      );
+      return distance < 30; // 30px radius for clicking (adjusted for reference size)
+    });
 
     if (clickedProperty) {
-      onPropertyClick(clickedProperty)
+      onPropertyClick(clickedProperty);
     }
-  }
+  };
 
   return (
     <div className="relative">
@@ -110,9 +126,13 @@ export default function PropertyMap({
               📍 Click anywhere on the map to place your property
             </p>
           )}
-          <Button variant="outline" size="sm" onClick={() => setIsFullMapOpen(true)}>
+          {/* <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullMapOpen(true)}
+          >
             🔍 View Full Map
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -124,10 +144,11 @@ export default function PropertyMap({
         onClick={handleMapClick}
       >
         <Image
+          ref={imageRef}
           src="/sushant-lok-map.png"
           alt="Sushant Lok Property Map"
-          width={800}
-          height={600}
+          width={REFERENCE_WIDTH}
+          height={REFERENCE_HEIGHT}
           className="w-full h-auto"
           priority
         />
@@ -138,12 +159,18 @@ export default function PropertyMap({
             key={property.id}
             className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
             style={{
-              left: `${(property.coordinates.x / 800) * 100}%`,
-              top: `${(property.coordinates.y / 600) * 100}%`,
+              left: `${(property.coordinates.x / REFERENCE_WIDTH) * 100}%`,
+              top: `${(property.coordinates.y / REFERENCE_HEIGHT) * 100}%`,
             }}
-            onClick={() => handlePropertyClick(property)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePropertyClick(property);
+            }}
           >
-            <div className="relative" style={{ color: getPropertyColor(property) }}>
+            <div
+              className="relative"
+              style={{ color: getPropertyColor(property) }}
+            >
               <MapPin
                 className={`w-4 h-4 drop-shadow-lg transition-transform group-hover:scale-110 ${
                   selectedProperty?.id === property.id ? "animate-bounce" : ""
@@ -165,7 +192,9 @@ export default function PropertyMap({
 
       {selectedProperty && (
         <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="font-semibold text-blue-900 mb-2">Selected Property</h3>
+          <h3 className="font-semibold text-blue-900 mb-2">
+            Selected Property
+          </h3>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="font-medium">Name:</span> {selectedProperty.name}
@@ -174,16 +203,19 @@ export default function PropertyMap({
               <span className="font-medium">Type:</span> {selectedProperty.type}
             </div>
             <div>
-              <span className="font-medium">Listing:</span> {selectedProperty.listingType}
+              <span className="font-medium">Listing:</span>{" "}
+              {selectedProperty.listingType}
             </div>
             <div>
               <span className="font-medium">Size:</span> {selectedProperty.size}
             </div>
             <div>
-              <span className="font-medium">Price:</span> {selectedProperty.price}
+              <span className="font-medium">Price:</span>{" "}
+              {selectedProperty.price}
             </div>
             <div>
-              <span className="font-medium">Sector:</span> {selectedProperty.sector}
+              <span className="font-medium">Sector:</span>{" "}
+              {selectedProperty.sector}
             </div>
           </div>
         </div>
@@ -198,5 +230,5 @@ export default function PropertyMap({
         onMapClick={onMapClick}
       />
     </div>
-  )
+  );
 }

@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,7 @@ import {
   ArrowUpDown,
   X,
 } from "lucide-react";
-import PropertyMap from "./components/property-map";
+import PropertyMap, { type PropertyMapRef } from "./components/property-map";
 import AddPropertyModal from "./components/add-property-modal";
 
 interface Property {
@@ -158,10 +158,18 @@ export default function PropertyApp() {
     y: number;
   } | null>(null);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [isFullscreenAddMode, setIsFullscreenAddMode] = useState(false);
+
+  // Ref to access PropertyMap methods
+  const mapRef = useRef<PropertyMapRef>(null);
 
   // --- QoL State Variables ---
   const [sortOption, setSortOption] = useState("default");
-  const [filters, setFilters] = useState<{ type: string; listingType: string; date: string }>({ type: "all", listingType: "all", date: "all" });
+  const [filters, setFilters] = useState<{
+    type: string;
+    listingType: string;
+    date: string;
+  }>({ type: "all", listingType: "all", date: "all" });
   const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(
     null
   );
@@ -172,7 +180,8 @@ export default function PropertyApp() {
   };
 
   const handleAddPropertyClick = () => {
-    setIsAddMode(true);
+    setIsFullscreenAddMode(true);
+    setIsAddMode(true); // Enable add mode when opening fullscreen
   };
 
   const handleMapClick = (coordinates: { x: number; y: number }) => {
@@ -180,7 +189,14 @@ export default function PropertyApp() {
       setNewPropertyCoords(coordinates);
       setIsAddModalOpen(true);
       setIsAddMode(false);
+      setIsFullscreenAddMode(false);
     }
+  };
+
+  const handleCloseFullscreenAdd = () => {
+    setIsFullscreenAddMode(false);
+    setIsAddMode(false);
+    mapRef.current?.resetView();
   };
 
   const handleAddProperty = (
@@ -339,11 +355,11 @@ export default function PropertyApp() {
             </div>
             <Button
               onClick={handleAddPropertyClick}
-              disabled={isAddMode}
+              disabled={isFullscreenAddMode}
               className="flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {isAddMode ? "Click on the map..." : "Add Property"}
+              {isFullscreenAddMode ? "Selecting Location..." : "Add Property"}
             </Button>
           </div>
         </div>
@@ -352,173 +368,173 @@ export default function PropertyApp() {
       <div className="max-w-7xl mx-auto p-4">
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Property List and Controls */}
-            <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-4">
             <Card>
               <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                <Filter className="w-5 h-5" />
-                Filters & Sorting
-                </span>
-                <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetFiltersAndSort}
-                >
-                <X className="w-4 h-4 mr-1" /> Reset
-                </Button>
-              </CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Filter className="w-5 h-5" />
+                    Filters & Sorting
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFiltersAndSort}
+                  >
+                    <X className="w-4 h-4 mr-1" /> Reset
+                  </Button>
+                </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              {/* Sort Select */}
-              <Select value={sortOption} onValueChange={setSortOption}>
-                <SelectTrigger>
-                <SelectValue placeholder="Sort by..." />
-                </SelectTrigger>
-                <SelectContent>
-                <SelectItem value="default">Default</SelectItem>
-                <SelectItem value="price-desc">
-                  Price: High to Low
-                </SelectItem>
-                <SelectItem value="price-asc">
-                  Price: Low to High
-                </SelectItem>
-                <SelectItem value="size-desc">
-                  Size: Large to Small
-                </SelectItem>
-                <SelectItem value="size-asc">
-                  Size: Small to Large
-                </SelectItem>
-                <SelectItem value="date-desc">
-                  Date: Newest First
-                </SelectItem>
-                <SelectItem value="date-asc">
-                  Date: Oldest First
-                </SelectItem>
-                </SelectContent>
-              </Select>
-              {/* Filter by Property Type */}
-              <Select
-                value={filters.type}
-                onValueChange={(value) => handleFilterChange("type", value)}
-              >
-                <SelectTrigger>
-                <SelectValue placeholder="Filter by Type" />
-                </SelectTrigger>
-                <SelectContent>
-                {propertyTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </SelectItem>
-                ))}
-                </SelectContent>
-              </Select>
-              {/* Filter by Listing Type */}
-              <Select
-                value={filters.listingType}
-                onValueChange={(value) =>
-                handleFilterChange("listingType", value)
-                }
-              >
-                <SelectTrigger>
-                <SelectValue placeholder="Filter by Listing" />
-                </SelectTrigger>
-                <SelectContent>
-                {listingTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </SelectItem>
-                ))}
-                </SelectContent>
-              </Select>
-              {/* Filter by Date Listed */}
-              <Select
-                value={filters.date || "all"}
-                onValueChange={(value) =>
-                setFilters((prev) => ({ ...prev, date: value }))
-                }
-              >
-                <SelectTrigger>
-                <SelectValue placeholder="Filter by Date" />
-                </SelectTrigger>
-                <SelectContent>
-                <SelectItem value="all">All Dates</SelectItem>
-                <SelectItem value="last7">Last 7 Days</SelectItem>
-                <SelectItem value="last30">Last 30 Days</SelectItem>
-                </SelectContent>
-              </Select>
+                {/* Sort Select */}
+                <Select value={sortOption} onValueChange={setSortOption}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="price-desc">
+                      Price: High to Low
+                    </SelectItem>
+                    <SelectItem value="price-asc">
+                      Price: Low to High
+                    </SelectItem>
+                    <SelectItem value="size-desc">
+                      Size: Large to Small
+                    </SelectItem>
+                    <SelectItem value="size-asc">
+                      Size: Small to Large
+                    </SelectItem>
+                    <SelectItem value="date-desc">
+                      Date: Newest First
+                    </SelectItem>
+                    <SelectItem value="date-asc">Date: Oldest First</SelectItem>
+                  </SelectContent>
+                </Select>
+                {/* Filter by Property Type */}
+                <Select
+                  value={filters.type}
+                  onValueChange={(value) => handleFilterChange("type", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {propertyTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Filter by Listing Type */}
+                <Select
+                  value={filters.listingType}
+                  onValueChange={(value) =>
+                    handleFilterChange("listingType", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by Listing" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listingTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Filter by Date Listed */}
+                <Select
+                  value={filters.date || "all"}
+                  onValueChange={(value) =>
+                    setFilters((prev) => ({ ...prev, date: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by Date" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="last7">Last 7 Days</SelectItem>
+                    <SelectItem value="last30">Last 30 Days</SelectItem>
+                  </SelectContent>
+                </Select>
               </CardContent>
             </Card>
 
             <div className="space-y-4 flex-grow overflow-y-auto max-h-[calc(100vh-250px)] pr-2">
               {displayedProperties.length > 0 ? (
-              displayedProperties.map((property) => (
-                <Card
-                key={property.id}
-                className={`cursor-pointer transition-all hover:shadow-lg ${
-                  selectedProperty?.id === property.id
-                  ? "ring-2 ring-blue-500 shadow-lg"
-                  : ""
-                }`}
-                onClick={() => setSelectedProperty(property)}
-                onMouseEnter={() => setHoveredPropertyId(property.id)}
-                onMouseLeave={() => setHoveredPropertyId(null)}
-                >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-3">
-                  <h3 className="font-semibold text-lg text-gray-900">
-                    {property.name}
-                  </h3>
-                  <Badge className={getPropertyTypeColor(property.type)}>
-                    {property.type}
-                  </Badge>
-                  </div>
+                displayedProperties.map((property) => (
+                  <Card
+                    key={property.id}
+                    className={`cursor-pointer transition-all hover:shadow-lg ${
+                      selectedProperty?.id === property.id
+                        ? "ring-2 ring-blue-500 shadow-lg"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedProperty(property)}
+                    onMouseEnter={() => setHoveredPropertyId(property.id)}
+                    onMouseLeave={() => setHoveredPropertyId(null)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-semibold text-lg text-gray-900">
+                          {property.name}
+                        </h3>
+                        <Badge className={getPropertyTypeColor(property.type)}>
+                          {property.type}
+                        </Badge>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Ruler className="w-4 h-4 text-gray-500" />
-                    <span>{property.size}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Home className="w-4 h-4 text-gray-500" />
-                    <span>{property.area}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-gray-500" />
-                    <span className="font-medium text-green-600">
-                    {property.price}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-500" />
-                    <span>Sector: {property.sector}</span>
-                  </div>
-                  <div className="flex items-center gap-2 col-span-2">
-                    <ArrowUpDown className="w-4 h-4 text-gray-500" />
-                    <span>
-                    Listed:{" "}
-                    {property.dateListed
-                      ? new Date(property.dateListed).toLocaleDateString()
-                      : "N/A"}
-                    </span>
-                  </div>
-                  </div>
-                  <div className="mt-3">
-                  <Badge variant="secondary">
-                    {property.listingType}
-                  </Badge>
-                  </div>
-                </CardContent>
-                </Card>
-              ))
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Ruler className="w-4 h-4 text-gray-500" />
+                          <span>{property.size}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Home className="w-4 h-4 text-gray-500" />
+                          <span>{property.area}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-gray-500" />
+                          <span className="font-medium text-green-600">
+                            {property.price}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-500" />
+                          <span>Sector: {property.sector}</span>
+                        </div>
+                        <div className="flex items-center gap-2 col-span-2">
+                          <ArrowUpDown className="w-4 h-4 text-gray-500" />
+                          <span>
+                            Listed:{" "}
+                            {property.dateListed
+                              ? new Date(
+                                  property.dateListed
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <Badge variant="secondary">
+                          {property.listingType}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               ) : (
-              <div className="text-center py-10 text-gray-500">
-                <p>No properties match your criteria.</p>
-                <p className="text-sm">Try adjusting your filters.</p>
-              </div>
+                <div className="text-center py-10 text-gray-500">
+                  <p>No properties match your criteria.</p>
+                  <p className="text-sm">Try adjusting your filters.</p>
+                </div>
               )}
             </div>
-            </div>
+          </div>
 
           {/* Map */}
           <div className="space-y-4 sticky top-[160px]">
@@ -553,6 +569,7 @@ export default function PropertyApp() {
             <Card>
               <CardContent className="p-2 md:p-4">
                 <PropertyMap
+                  ref={mapRef}
                   properties={properties}
                   selectedProperty={selectedProperty}
                   onPropertyClick={setSelectedProperty}
@@ -566,12 +583,51 @@ export default function PropertyApp() {
         </div>
       </div>
 
+      {/* Fullscreen Add Property Mode */}
+      <Dialog open={isFullscreenAddMode} onOpenChange={setIsFullscreenAddMode}>
+        <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="flex items-center justify-between text-xl">
+              <span className="flex items-center gap-2">
+                <MapPin className="w-6 h-6" />
+                Add Property - Select Location
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCloseFullscreenAdd}
+                className="ml-4"
+              >
+                Cancel
+              </Button>
+            </DialogTitle>
+            <p className="text-sm text-gray-600">
+              Use zoom controls and click precisely where you want to place the
+              property
+            </p>
+          </DialogHeader>
+          <div className="flex-1 p-6 pt-2">
+            <PropertyMap
+              ref={mapRef}
+              properties={properties}
+              selectedProperty={selectedProperty}
+              onPropertyClick={setSelectedProperty}
+              isAddMode={isAddMode}
+              onMapClick={handleMapClick}
+              hoveredPropertyId={hoveredPropertyId}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AddPropertyModal
         isOpen={isAddModalOpen}
         onClose={() => {
           setIsAddModalOpen(false);
           setNewPropertyCoords(null);
           setIsAddMode(false);
+          setIsFullscreenAddMode(false);
+          mapRef.current?.resetView(); // Reset zoom when cancelling
         }}
         onAdd={handleAddProperty}
         coordinates={newPropertyCoords}
